@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pool Chemistry Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <form id="pool-form">
+        <div class="section">
+            <h3>Pool Physical Information</h3>
+            <label>
+                Pool Capacity (gallons):
+                <input type="number" id="capacity" min="1000" required>
+            </label>
+            <label>
+                Approximate Water Temperature (°F):
+                <input type="number" id="temperature" min="32" max="120" required>
+            </label>
+        </div>
+        <div class="section">
+            <h3>SANITIZE to Protect the Bathers</h3>
+            <label>
+                Free Chlorine (ppm):
+                <input type="number" id="freechlorine" min="0" step="0.1" required>
+            </label>
+            <label>
+                Cyanuric Acid (ppm):
+                <input type="number" id="cyanuric" min="0" step="1" required>
+            </label>
+        </div>
+        <div class="section">
+            <h3>BALANCE to Protect the Pool</h3>
+            <label>
+                pH:
+                <input type="number" id="ph" min="6.0" max="9.0" step="0.01" required>
+            </label>
+            <label>
+                Total Alkalinity (ppm):
+                <input type="number" id="alkalinity" min="0" step="1" required>
+            </label>
+            <label>
+                Calcium Hardness (ppm):
+                <input type="number" id="calcium" min="0" step="1" required>
+            </label>
+            <label>
+                Total Dissolved Solids (ppm):
+                <input type="number" id="tds" min="0" step="1" required>
+            </label>
+        </div>
+        <div class="section">
+            <h3>Other</h3>
+            <label>
+                Select Your State:
+                <select id="state" required>
+                    <option value="arizona">Arizona</option>
+                    <option value="texas">Texas</option>
+                    <option value="florida">Florida</option>
+                </select>
+            </label>
+        </div>
+        <button type="submit">Calculate LSI & Dosing</button>
+    </form>
+    <div id="results"></div>
+    <script src="script.js"></script>
+</body>
+</html>
