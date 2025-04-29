@@ -1,18 +1,12 @@
 // State-specific "golden numbers"
 const GOLDEN_NUMBERS = {
-    arizona: { alkalinity: 120, calcium: 400, ph: 7.5, cya: 80 },
-    texas:   { alkalinity: 120, calcium: 400, ph: 7.5, cya: 80 },
-    florida: { alkalinity: 80, calcium: 300, ph: 7.6, cya: 50 }
+    arizona: { alkalinity: 120, calcium: 400, ph: 7.5, cya: 80, salt: 3200 },
+    texas:   { alkalinity: 120, calcium: 400, ph: 7.5, cya: 80, salt: 3200 },
+    florida: { alkalinity: 80, calcium: 300, ph: 7.6, cya: 50, salt: 3200 }
 };
 
-// Florida-specific dosing thresholds
-const FL_THRESHOLDS = {
-    alkalinity: 60,
-    calcium: 200,
-    cya: 30
-};
+const FL_THRESHOLDS = { alkalinity: 60, calcium: 200, cya: 30 };
 
-// Factor tables
 const ALKALINITY_FACTORS = [
     { ppm: 5, factor: 0.7 }, { ppm: 25, factor: 1.4 }, { ppm: 50, factor: 1.7 },
     { ppm: 75, factor: 1.9 }, { ppm: 100, factor: 2.0 }, { ppm: 125, factor: 2.1 },
@@ -57,6 +51,18 @@ function formatAmountOzLb(amountOz) {
     } else {
         return `${amountOz.toFixed(2)} oz`;
     }
+}
+
+function formatLbsOz(ounces) {
+    const lbs = Math.floor(ounces / 16);
+    const oz = ounces % 16;
+    let result = '';
+    if (lbs > 0) result += `${lbs} lb${lbs > 1 ? 's' : ''}`;
+    if (oz > 0 || lbs === 0) {
+        if (result) result += ' ';
+        result += `${oz.toFixed(2)} oz`;
+    }
+    return result;
 }
 
 function acidDoseFlOzGallons(currentPh, targetPh, poolGallons, alkalinity) {
@@ -107,6 +113,25 @@ function getLiquidChlorineDose(chlorinePPM, poolGallons) {
 function getCalHypoOunces(chlorinePPM, poolGallons) {
     return chlorinePPM * 2.0 * (poolGallons / 10000);
 }
+
+// Helper to bold the quantity and units in a dosing sentence
+function boldQuantity(sentence) {
+    // This regex matches "Add <quantity and units> of"
+    return sentence.replace(/(Add\s+)([\d.,\s\(\)a-zA-Z%]+)(\s+of)/i, function(match, p1, p2, p3) {
+        return p1 + '<strong>' + p2.trim() + '</strong>' + p3;
+    });
+}
+
+// Salt dosing calculation (183 lbs raises 1,000 ppm in 10,000 gallons)
+function getSaltDose(current, desired, poolGallons) {
+    if (desired <= current) return null;
+    const ppmNeeded = desired - current;
+    // 183 lbs per 1,000 ppm per 10,000 gal
+    const lbsNeeded = (ppmNeeded * poolGallons * 183) / (1000 * 10000);
+    const bags = Math.ceil(lbsNeeded / 40);
+    return { lbsNeeded, bags };
+}
+
 function getDosingAdvice(userValue, targetValue, poolGallons, chemType, alkalinity, state) {
     let advice = "";
     let amount = 0;
@@ -178,6 +203,10 @@ function calculateLSI() {
     const cyanuric = parseFloat(document.getElementById('cyanuric').value) || 0;
     const freeChlorine = parseFloat(document.getElementById('freechlorine').value);
 
+    // Salt generator fields
+    const saltCurrent = parseFloat(document.getElementById('salt-current').value) || 0;
+    const saltDesired = parseFloat(document.getElementById('salt-desired').value) || 0;
+
     const resultsElement = document.getElementById('results');
 
     if (
@@ -187,7 +216,6 @@ function calculateLSI() {
         return;
     }
 
-    // Use corrected alkalinity for LSI and for dosing advice
     let correctedAlkalinity = alkalinity - (cyanuric / 3);
     if (correctedAlkalinity < 0) correctedAlkalinity = 0;
 
@@ -200,7 +228,6 @@ function calculateLSI() {
 
     let golden = GOLDEN_NUMBERS[state];
 
-    // Prepare dosing advice for each parameter (using corrected alkalinity for dosing)
     const dosing = {
         ph: getDosingAdvice(ph, golden.ph, poolGallons, "ph", alkalinity, state),
         alkalinity: getDosingAdvice(correctedAlkalinity, golden.alkalinity, poolGallons, "alkalinity", alkalinity, state),
@@ -208,7 +235,6 @@ function calculateLSI() {
         calcium: getDosingAdvice(calcium, golden.calcium, poolGallons, "calcium", alkalinity, state)
     };
 
-    // Build weekly plan with special rule for pH/alkalinity
     let weeks = [[], [], []];
     if (ph < 7.5 && correctedAlkalinity <= 80 && dosing.alkalinity) {
         weeks[0].push('alkalinity');
@@ -243,24 +269,22 @@ function calculateLSI() {
         if (nonCritical[2]) weeks[2].push(nonCritical[2]);
     }
 
-    // Format weekly plan with dosing
-    let weeklyHTML = `<h4>Weekly Adjustment Plan:</h4><ol>`;
+    let adjustNow = [];
+    let nextVisit = [];
+
     weeks.forEach((params, idx) => {
-        if (params.length === 0) {
-            weeklyHTML += `<li>Week ${idx+1}: No adjustments needed.</li>`;
-        } else {
-            weeklyHTML += `<li>Week ${idx+1}:<ul>`;
+        if (idx === 0 && params.length > 0) {
             params.forEach(param => {
-                if (dosing[param]) {
-                    weeklyHTML += `<li>${dosing[param]}</li>`;
-                }
+                if (dosing[param]) adjustNow.push(dosing[param]);
             });
-            weeklyHTML += `</ul></li>`;
+        }
+        if (idx > 0 && params.length > 0) {
+            params.forEach(param => {
+                if (dosing[param]) nextVisit.push(dosing[param]);
+            });
         }
     });
-    weeklyHTML += `</ol>`;
 
-    // LSI interpretation
     let lsiStatus;
     if (lsi < -0.5) {
         lsiStatus = "Very Corrosive";
@@ -276,8 +300,81 @@ function calculateLSI() {
         lsiStatus = "Scale Forming";
     }
 
-    // Chlorine dosing
     const chlorineInfo = getChlorinePPMDose(freeChlorine, cyanuric);
+
+    // Salt dosing
+    let saltDose = null;
+    if (saltDesired > 0 && saltCurrent >= 0 && saltDesired > saltCurrent) {
+        saltDose = getSaltDose(saltCurrent, saltDesired, poolGallons);
+    }
+
+    // --- Build summary of chemicals to add now ---
+    let summaryList = [];
+    let acidList = [];
+    let otherList = [];
+
+    // Add muriatic acid (for lowering pH) first, if present
+    adjustNow.forEach(item => {
+        if (item && item.toLowerCase().includes("muriatic acid")) {
+            acidList.push(boldQuantity(item) + ' <em>(Add immediately after testing.)</em>');
+        }
+    });
+
+    // Add salt if needed
+    if (saltDose && saltDose.lbsNeeded > 0.01) {
+        otherList.push(
+            boldQuantity(
+                `Add ${saltDose.lbsNeeded.toFixed(2)} lbs of pool salt (${saltDose.bags} x 40 lb bags) to reach your desired salt level.`
+            )
+        );
+    }
+
+    // Add other balancing chems and sanitizer, but do not mix acid and chlorine
+    adjustNow.forEach(item => {
+        if (item && !item.toLowerCase().includes("muriatic acid")) {
+            otherList.push(boldQuantity(item));
+        }
+    });
+
+    // Add sanitizer (chlorine) if needed, but not in same group as acid
+    if (state === "florida") {
+        const liquidChlorine = getLiquidChlorineDose(chlorineInfo.toBeDosed, poolGallons);
+        if (chlorineInfo.toBeDosed > 0.01) {
+            otherList.push(
+                boldQuantity(`Add ${liquidChlorine.gallons.toFixed(2)} gal (${liquidChlorine.flOz.toFixed(0)} fl oz) of 12.5% liquid chlorine.`)
+            );
+        }
+    } else {
+        const calHypoOunces = getCalHypoOunces(chlorineInfo.toBeDosed, poolGallons);
+        if (chlorineInfo.toBeDosed > 0.01) {
+            otherList.push(
+                boldQuantity(`Add ${formatLbsOz(calHypoOunces)} of calcium hypochlorite (73%).`)
+            );
+        }
+    }
+
+    // --- Build comparison chart ---
+    function chartRow(label, current, golden) {
+        return `<tr><td>${label}</td><td>${current}</td><td>${golden}</td></tr>`;
+    }
+    let comparisonTable = `
+        <table style="width:100%;max-width:500px;margin:1em auto;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="border-bottom:1px solid #ccc;">Parameter</th>
+                    <th style="border-bottom:1px solid #ccc;">Test Result</th>
+                    <th style="border-bottom:1px solid #ccc;">Golden Number</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${chartRow("pH", ph, golden.ph)}
+                ${chartRow("Alkalinity (ppm)", alkalinity, golden.alkalinity)}
+                ${chartRow("Calcium Hardness (ppm)", calcium, golden.calcium)}
+                ${chartRow("Cyanuric Acid (ppm)", cyanuric, golden.cya)}
+                ${chartRow("Salt (ppm)", saltCurrent, golden.salt)}
+            </tbody>
+        </table>
+    `;
 
     let chlorineHTML = "";
     if (state === "florida") {
@@ -305,26 +402,49 @@ function calculateLSI() {
                 <li>Calculated Chlorine Dose: ${chlorineInfo.calculatedDose.toFixed(2)} ppm</li>
                 <li>Tested Free Chlorine: ${freeChlorine.toFixed(2)} ppm</li>
                 <li><strong>Chlorine to Be Dosed: ${chlorineInfo.toBeDosed.toFixed(2)} ppm</strong></li>
-                <li><strong>Calcium Hypochlorite (73%) to Add: ${calHypoOunces.toFixed(2)} oz</strong></li>
+                <li><strong>Calcium Hypochlorite (73%) to Add: ${formatLbsOz(calHypoOunces)}</strong></li>
             </ul>
         `;
     }
 
-    // Display results
+    // --- Output ---
     resultsElement.innerHTML = `
+        <h3>Summary of Chemicals to Add at Today's Visit</h3>
+        <ul>
+            ${acidList.length > 0 ? acidList.map(item => `<li>${item}</li>`).join('') : ''}
+        </ul>
+        ${acidList.length > 0 ? '<div style="margin-bottom:0.5em;"><em>Wait at least 15 minutes and circulate water before adding any other chemicals.</em></div>' : ''}
+        <ul>
+            ${otherList.length > 0 ? otherList.map(item => `<li>${item}</li>`).join('') : '<li>No chemicals need to be added at this time.</li>'}
+        </ul>
+        <div style="font-size:1.5em; letter-spacing:0.2em; margin: 1em 0; text-align:center;">*******</div>
+        ${comparisonTable}
+        <h3>Detailed Explanation</h3>
         ${chlorineHTML}
-        <h3>Results for ${state.charAt(0).toUpperCase() + state.slice(1)}</h3>
+        <h3>Water Balance Recommendation (${state.charAt(0).toUpperCase() + state.slice(1)})</h3>
         <p><strong>LSI Value:</strong> ${lsi.toFixed(2)}</p>
         <h4>Pool Water Assessment:</h4>
         <p>${lsiStatus}</p>
-        ${weeklyHTML}
+        <h4>Water Balance Adjustment Plan</h4>
+        <ul>
+            ${adjustNow.length > 0 ? `<li><strong>Adjust Now:</strong><ul>${adjustNow.map(item => `<li>${item}</li>`).join('')}</ul></li>` : '<li>No immediate adjustments needed.</li>'}
+        </ul>
+        ${nextVisit.length > 0 ? `
+            <h4>Water Balance Notes for Next Visit</h4>
+            <ul>
+                ${nextVisit.map(item => `<li>${item} <br><em>These changes should be made at the next service visit. Retest the water before making adjustments.</em></li>`).join('')}
+            </ul>
+        ` : ''}
         <p><strong>Golden Numbers for ${state.charAt(0).toUpperCase() + state.slice(1)}:</strong></p>
         <ul>
             <li>pH: ${golden.ph}</li>
             <li>Alkalinity: ${golden.alkalinity} ppm</li>
             <li>Calcium Hardness: ${golden.calcium} ppm</li>
             <li>Cyanuric Acid: ${golden.cya} ppm</li>
+            <li>Salt: ${golden.salt} ppm</li>
         </ul>
+        ${saltDose && saltDose.lbsNeeded > 0.01 ? `<h4>Salt Dosing Recommendation</h4>
+        <p>Add <strong>${saltDose.lbsNeeded.toFixed(2)} lbs</strong> of pool salt (<strong>${saltDose.bags} x 40 lb bags</strong>) to reach your desired salt level.</p>` : ''}
     `;
 }
 
