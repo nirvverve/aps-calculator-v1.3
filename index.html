@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Pool Chemistry Calculator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Mobile scaling -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,60 +12,57 @@
         <h1>Pool Chemistry Calculator</h1>
     </header>
     <main>
-        <form id="pool-form">
+        <form id="pool-form" autocomplete="off">
             <section class="section">
                 <h2>Pool Physical Information</h2>
                 <label>
                     Pool Capacity (gallons):
-                    <input type="number" id="capacity" min="1000" required>
+                    <input type="number" id="capacity" min="1000" required inputmode="numeric">
                 </label>
                 <label>
-                    Approximate Water Temperature (°F):
-                    <input type="number" id="temperature" min="32" max="120" required>
+                    Water Temperature (°F):
+                    <input type="number" id="temperature" min="32" max="120" required inputmode="numeric">
                 </label>
             </section>
             <section class="section">
                 <h2>Sanitize to Protect the Bathers</h2>
                 <label class="field-fac">
                     Free Chlorine (ppm):
-                    <input type="number" id="freechlorine" min="0" step="0.1" required>
+                    <input type="number" id="freechlorine" min="0" step="0.1" required inputmode="decimal">
                 </label>
                 <label class="field-cya">
                     Cyanuric Acid (ppm):
-                    <input type="number" id="cyanuric" min="0" step="1" required>
+                    <input type="number" id="cyanuric" min="0" step="1" required inputmode="numeric">
                 </label>
             </section>
             <section class="section">
                 <h2>Balance to Protect the Pool</h2>
                 <label class="field-ph">
                     pH:
-                    <input type="number" id="ph" min="6.0" max="9.0" step="0.01" required>
+                    <input type="number" id="ph" min="6.0" max="9.0" step="0.01" required inputmode="decimal">
                 </label>
                 <label class="field-alk">
                     Total Alkalinity (ppm):
-                    <input type="number" id="alkalinity" min="0" step="1" required>
+                    <input type="number" id="alkalinity" min="0" step="1" required inputmode="numeric">
                 </label>
                 <label class="field-ch">
                     Calcium Hardness (ppm):
-                    <input type="number" id="calcium" min="0" step="1" required>
+                    <input type="number" id="calcium" min="0" step="1" required inputmode="numeric">
                 </label>
                 <label class="field-tds">
                     Total Dissolved Solids (ppm):
-                    <input type="number" id="tds" min="0" step="1" required>
-                    <br>
-                    <span style="font-size:0.85em; font-style:italic; color:#555;">
-                        Note: if you do not have a TDS meter, use 1,600 ppm as a default value.
-                    </span>
+                    <input type="number" id="tds" min="0" step="1" required inputmode="numeric">
+                    <span>Note: if you do not have a TDS meter, use 1,600 ppm as a default value.</span>
                 </label>
             </section>
             <section class="section">
                 <h2>Salt Generator Dosing</h2>
                 <label>
-                    Current Salt Level (in ppm):
-                    <input type="number" id="salt-current" min="0" step="1" value="0">
+                    Current Salt Level (ppm):
+                    <input type="number" id="salt-current" min="0" step="1" value="0" inputmode="numeric">
                 </label>
                 <label>
-                    Desired Salt Level (in ppm):
+                    Desired Salt Level (ppm):
                     <select id="salt-desired">
                         <option value="0">0 ppm</option>
                         <option value="3200">3,200 ppm</option>
